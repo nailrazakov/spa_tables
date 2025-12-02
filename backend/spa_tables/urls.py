@@ -6,6 +6,5 @@ app_name = SpaTablesConfig.name
 
 router = SimpleRouter()
 router.register("", TableDataViewSet)
-
 urlpatterns = []
 urlpatterns += router.urls
