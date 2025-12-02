@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+    db:
+        image: postgres:16
+        restart: on-failure
+        env_file:
+          - .env
+        expose:
+          - "5432"
+        volumes:
+          - pg_data:/var/lib/postgresql/data
+
+        healthcheck:
+          test: ["CMD-SHELL", "-c", "pg_isready -U $USER"]
+          interval: 10s
+          retries: 5
+          timeout: 5s
+      
+      backend-django:
+        build: ./backend
+        tty: true
+        env_file:
+          - .env
+        ports:
+          - "8000:8000"
+        user: "1000:1000"
+
+        depends_on:
+          db:
+            condition: service_healthy
+        volumes:
+          - .:/app
+      
+      frontend-vue3:
+        build: ./frontend
+        tty: true
+       
+        ports:
+          - "5173:5173"
+
+        depends_on:
+          db:
+            condition: service_healthy
+        volumes:
+          - .:/app
+    
+    nginx:
+        image: nginx:alpine
+       
+        ports:
+          - "80:80"
+          
+        volumes:
+            - ./nginx/nginx.conf:/etc/nginx/default.conf
+            - static_volume:/app/
+
+        depends_on:
+          - backend-django
+          - frontend-vue3
+            condition: service_healthy
+        restart: unless-stopped
+volumes:
+  pg_data:
