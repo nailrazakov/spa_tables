@@ -17,7 +17,7 @@ services:
           retries: 5
           timeout: 5s
       
-      backend-django:
+      backend:
         build: ./backend
         tty: true
         env_file:
@@ -32,7 +32,7 @@ services:
         volumes:
           - .:/app
       
-      frontend-vue3:
+      frontend:
         build: ./frontend
         tty: true
        
@@ -56,8 +56,8 @@ services:
             - static_volume:/app/
 
         depends_on:
-          - backend-django
-          - frontend-vue3
+          - backend
+          - frontend
             condition: service_healthy
         restart: unless-stopped
 volumes:
