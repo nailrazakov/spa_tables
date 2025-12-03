@@ -12,7 +12,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = True if os.getenv('DEBUG') == 'True' else False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = (os.getenv("ALLOWED_HOSTS"),)
 
 
 # Application definition
@@ -47,6 +47,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://frontend:8000",
     "http://localhost:5173",
 ]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
