@@ -1,64 +1,75 @@
 version: "3.9"
-
 services:
-    db:
-        image: postgres:16
-        restart: on-failure
-        env_file:
-          - .env
-        expose:
-          - "5432"
-        volumes:
-          - pg_data:/var/lib/postgresql/data
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-        healthcheck:
-          test: ["CMD-SHELL", "-c", "pg_isready -U $USER"]
-          interval: 10s
-          retries: 5
-          timeout: 5s
-      
-      backend:
-        build: ./backend
-        tty: true
-        env_file:
-          - .env
-        ports:
-          - "8000:8000"
-        user: "1000:1000"
+  # Django бэкенд
+  backend:
+    build: ./backend
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn myproject.wsgi:application --bind 0.0.0.0:8000"
+    environment:
+      - DEBUG=${DEBUG}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${USER}:${PASSWORD}@postgres:5432/${NAME}
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS}
+    volumes:
+      - static_volume:/app/static
+      - media_volume:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
-        depends_on:
-          db:
-            condition: service_healthy
-        volumes:
-          - .:/app
-      
-      frontend:
-        build: ./frontend
-        tty: true
-       
-        ports:
-          - "5173:5173"
+  # Vue 3 фронтенд
+  frontend:
+    build: ./frontend
+    command: npm run dev
+    environment:
+      - VITE_API_URL=http://localhost/spa_tables/
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"  # Vite dev server порт
+    stdin_open: true
+    tty: true
+    depends_on:
+      - backend
 
-        depends_on:
-          db:
-            condition: service_healthy
-        volumes:
-          - .:/app
-    
-    nginx:
-        image: nginx:alpine
-       
-        ports:
-          - "80:80"
-          
-        volumes:
-            - ./nginx/nginx.conf:/etc/nginx/default.conf
-            - static_volume:/app/
+  # Nginx прокси
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"  # для HTTPS если нужно
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/static
+      - media_volume:/media
+      - ./nginx/ssl:/etc/nginx/ssl  # для SSL сертификатов
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
 
-        depends_on:
-          - backend
-          - frontend
-            condition: service_healthy
-        restart: unless-stopped
 volumes:
-  pg_data:
+  postgres_data:
+  static_volume:
+  media_volume:
